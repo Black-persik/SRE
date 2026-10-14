@@ -1,0 +1,265 @@
+openapi: 3.0.3
+info:
+  title: SRE TBank API
+  version: 1.0.0
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/v1/users:
+    post:
+      summary: Create user
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid JSON or missing username and email
+        "409":
+          description: Username or email already exists
+        "500":
+          description: Internal error
+  /api/v1/users/{id}:
+    get:
+      summary: Get user by id
+      operationId: getUserByID
+      parameters:
+        - $ref: "#/components/parameters/UserID"
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Invalid id
+        "500":
+          description: Internal error
+  /api/v1/users/{id}/email/{email}:
+    patch:
+      summary: Update user email
+      operationId: updateUserEmail
+      parameters:
+        - $ref: "#/components/parameters/UserID"
+        - name: email
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Email updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          description: Invalid id or missing email
+        "409":
+          description: Email already exists
+        "500":
+          description: Internal error
+  /api/v1/users/username/{username}:
+    get:
+      summary: Get user by username
+      operationId: getUserByUsername
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: User
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          description: Missing username
+        "500":
+          description: Internal error
+  /api/v1/responses:
+    post:
+      summary: Create response
+      operationId: createResponse
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateResponseRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Response"
+        "400":
+          description: Invalid JSON or missing user_id, company, or vacancy
+        "404":
+          description: User not found
+        "500":
+          description: Internal error
+  /api/v1/responses/{id}:
+    get:
+      summary: Get response by id
+      operationId: getResponseByID
+      parameters:
+        - $ref: "#/components/parameters/ResponseID"
+      responses:
+        "200":
+          description: Response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Response"
+        "400":
+          description: Invalid id
+        "500":
+          description: Internal error
+    delete:
+      summary: Delete response
+      operationId: deleteResponse
+      parameters:
+        - $ref: "#/components/parameters/ResponseID"
+      responses:
+        "200":
+          description: Response deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          description: Invalid id
+        "500":
+          description: Internal error
+  /api/v1/responses/{id}/status/{status}:
+    patch:
+      summary: Update response status
+      operationId: updateResponseStatus
+      parameters:
+        - $ref: "#/components/parameters/ResponseID"
+        - name: status
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/ResponseStatus"
+      responses:
+        "200":
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "400":
+          description: Invalid id or missing status
+        "500":
+          description: Internal error
+  /api/v1/responses/user/{user_id}:
+    get:
+      summary: List responses by user id
+      operationId: getResponsesByUserID
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Responses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Response"
+        "400":
+          description: Invalid user id
+        "500":
+          description: Internal error
+components:
+  parameters:
+    UserID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ResponseID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    CreateUserRequest:
+      type: object
+      required: [username, email]
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+    User:
+      type: object
+      properties:
+        ID:
+          type: string
+          format: uuid
+        Username:
+          type: string
+        Email:
+          type: string
+    CreateResponseRequest:
+      type: object
+      required: [user_id, company, vacancy]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        company:
+          type: string
+        vacancy:
+          type: string
+        status:
+          $ref: "#/components/schemas/ResponseStatus"
+    Response:
+      type: object
+      properties:
+        ID:
+          type: string
+          format: uuid
+        UserID:
+          type: string
+          format: uuid
+        Company:
+          type: string
+        Vacancy:
+          type: string
+        Status:
+          $ref: "#/components/schemas/ResponseStatus"
+    ResponseStatus:
+      type: string
+      enum: [waiting, accepted, rejected]
+    Message:
+      type: object
+      properties:
+        message:
+          type: string

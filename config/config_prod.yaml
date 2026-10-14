@@ -1,0 +1,15 @@
+db:
+  connect_timeout: 
+    10s
+  max_idle_conns:
+    20
+  max_open_conns:
+    100
+  conn_max_lifetime:
+    1h
+  conn_max_idle_time:
+    1h
+
+
+app:
+  port: 8080

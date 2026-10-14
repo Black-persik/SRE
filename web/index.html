@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Отклики</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="top">
+      <div>
+        <p class="eyebrow">Все компании в одном списке</p>
+        <h1>Отклики</h1>
+      </div>
+      <p class="lede">Отмечайте, куда отправили резюме, и какой ответ пришёл: ждём, оффер или отказ.</p>
+    </header>
+
+    <p id="notice" class="notice" hidden></p>
+
+    <section id="gate" class="panel">
+      <div class="split">
+        <form id="login-form">
+          <h2>Открыть свой список</h2>
+          <label>
+            Имя
+            <input name="username" autocomplete="username" required placeholder="ivan">
+          </label>
+          <button type="submit">Открыть</button>
+        </form>
+        <form id="register-form">
+          <h2>Новый профиль</h2>
+          <label>
+            Имя
+            <input name="username" autocomplete="username" required placeholder="ivan">
+          </label>
+          <label>
+            Почта
+            <input name="email" type="email" autocomplete="email" required placeholder="ivan@example.com">
+          </label>
+          <button type="submit">Создать</button>
+        </form>
+      </div>
+    </section>
+
+    <section id="board" hidden>
+      <div class="profile panel">
+        <div>
+          <p class="eyebrow">Профиль</p>
+          <h2 id="profile-name"></h2>
+          <p id="profile-email" class="muted"></p>
+        </div>
+        <form id="email-form" class="inline-form">
+          <label>
+            Новая почта
+            <input name="email" type="email" required placeholder="new@example.com">
+          </label>
+          <button type="submit">Сохранить</button>
+        </form>
+        <button id="logout" type="button" class="ghost">Выйти</button>
+      </div>
+
+      <div class="stats" id="stats"></div>
+
+      <form id="response-form" class="panel add-form">
+        <h2>Новый отклик</h2>
+        <label>
+          Компания
+          <input name="company" required placeholder="Т-Банк">
+        </label>
+        <label>
+          Вакансия
+          <input name="vacancy" required placeholder="SRE">
+        </label>
+        <label>
+          Статус
+          <select name="status">
+            <option value="waiting">Ждём</option>
+            <option value="accepted">Оффер</option>
+            <option value="rejected">Отказ</option>
+          </select>
+        </label>
+        <button type="submit">Добавить</button>
+      </form>
+
+      <div class="toolbar">
+        <input id="search" type="search" placeholder="Найти компанию или вакансию">
+        <div class="filters" id="filters">
+          <button type="button" data-filter="all" class="chip is-on">Все</button>
+          <button type="button" data-filter="waiting" class="chip">Ждём</button>
+          <button type="button" data-filter="accepted" class="chip">Оффер</button>
+          <button type="button" data-filter="rejected" class="chip">Отказ</button>
+        </div>
+      </div>
+
+      <div id="list" class="list"></div>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+# Secrets / local environment
+.env
+.env.*
+!.env.example
+
+# Build output
+/bin/
+/out/
+/sre_tbank
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go test & coverage
+*.test
+*.out
+coverage.*
+*.coverprofile
+profile.cov
+
+# Go workspace
+go.work
+go.work.sum
+
+# Vendored dependencies (uncomment if not committing vendor/)
+# vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs & temp
+*.log
+tmp/

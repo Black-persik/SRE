@@ -1,0 +1,2 @@
+FROM ghcr.io/kukymbr/goose-docker:3.27.3
+COPY migrations /migrations
