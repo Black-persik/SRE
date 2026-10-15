@@ -1,0 +1,15 @@
+server:
+  # сколько храним логи
+  retentionPeriod: 7d
+
+  # постоянный диск для данных
+  persistentVolume:
+    enabled: true
+    size: 3Gi
+  
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi

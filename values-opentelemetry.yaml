@@ -1,0 +1,70 @@
+mode: daemonset
+image:
+  # Какой Docker-образ коллектора запускать. Нужна сборка с компонентами
+  # для Kubernetes: в базовом образе нет filelog receiver и k8sattributes processor.
+  # Новые версии чарта требуют указать repository явно, иначе установка упадёт.
+  repository: otel/opentelemetry-collector-k8s
+
+presets:
+  # Пресеты — готовые куски конфигурации, которые чарт добавляет сам.
+
+  logsCollection:
+    # Включает сбор логов подов. Чарт за вас:
+    #  - добавляет filelog receiver, который читает /var/log/pods/*/*/*.log;
+    #  - монтирует эту папку с ноды в под коллектора (hostPath);
+    #  - разбирает формат строк containerd/docker и достаёт из пути файла
+    #    namespace, имя пода и контейнера;
+    #  - подключает этот receiver в пайплайн logs.
+    enabled: true
+
+  kubernetesAttributes:
+    # Включает обогащение логов метаданными из Kubernetes API.
+    # Чарт добавляет k8sattributes processor (подтягивает имя deployment,
+    # node, uid пода и т.д.) и создаёт ServiceAccount и ClusterRole,
+    # чтобы коллектор мог читать информацию о подах.
+    enabled: true
+
+config:
+  # Всё, что ниже, сливается с дефолтным конфигом коллектора из чарта.
+
+  exporters:
+    # Раздел «куда отправлять данные».
+
+    otlphttp:
+      # Exporter, который шлёт данные по протоколу OTLP поверх HTTP.
+      # Имя «otlphttp» одновременно задаёт тип компонента.
+
+      logs_endpoint: http://vls-victoria-logs-single-server.logging.svc.cluster.local:9428/insert/opentelemetry/v1/logs
+      # Полный URL для логов:
+      #  vls-victoria-logs-single-server.logging.svc.cluster.local
+      #                              — DNS-имя сервиса VictoriaLogs (сервис
+      #                                vls-victoria-logs-single-server в namespace logging);
+      #  9428                        — стандартный порт VictoriaLogs;
+      #  /insert/opentelemetry/v1/logs — ручка, принимающая OTLP-логи.
+      # Здесь используется logs_endpoint, а не endpoint: так задаётся URL
+      # целиком, и коллектор не будет сам дописывать к нему /v1/logs.
+
+      headers:
+        # Дополнительные HTTP-заголовки к каждому запросу.
+
+        VL-Stream-Fields: k8s.namespace.name,k8s.pod.name,k8s.container.name
+        # Заголовок для VictoriaLogs: какие атрибуты считать полями стрима.
+        # Стрим — это группа логов от одного источника. По полям стрима
+        # VictoriaLogs группирует и сжимает данные, и по ним быстрее всего
+        # искать. Остальные атрибуты сохранятся как обычные поля.
+        # Без этого заголовка полями стрима станут все атрибуты, включая
+        # uid подов, и стримов будет слишком много.
+
+  service:
+    # Раздел, который определяет, какие компоненты реально работают
+    # и как они соединены. Объявленный выше, но не упомянутый здесь
+    # компонент просто не запустится.
+
+    pipelines:
+      logs:
+        # Пайплайн для логов. Receivers и processors сюда уже добавили пресеты.
+
+        exporters: [otlp_http]
+        # Отправлять результат в exporter, описанный выше.
+        # Этот список заменяет дефолтный из чарта целиком,
+        # поэтому debug-exporter (вывод логов в консоль коллектора) отключается.

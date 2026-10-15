@@ -29,6 +29,7 @@ func New(ctx context.Context) (*App, error) {
 	}
 
 	log := NewLogger(cfg.App.Environment)
+	slog.SetDefault(log)
 
 	container, err := NewContainer(ctx, cfg)
 	if err != nil {
@@ -54,8 +55,9 @@ func New(ctx context.Context) (*App, error) {
 		log:       log,
 		container: container,
 		server: &http.Server{
-			Addr:    fmt.Sprintf(":%d", cfg.App.Port),
-			Handler: middleware.Logging(log)(mux),
+			Addr:     fmt.Sprintf(":%d", cfg.App.Port),
+			Handler:  middleware.Logging(log)(mux),
+			ErrorLog: slog.NewLogLogger(log.Handler(), slog.LevelError),
 		},
 	}, nil
 }
@@ -67,7 +69,7 @@ func (a *App) Run(ctx context.Context) error {
 	defer stop()
 	errCh := make(chan error, 1)
 	go func() {
-		a.log.Info("server started", "port", a.cfg.App.Port)
+		a.log.Info("server started", "server.port", a.cfg.App.Port)
 		if err := a.server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}
