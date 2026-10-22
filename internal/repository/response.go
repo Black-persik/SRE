@@ -113,8 +113,12 @@ func (r *ResponseRepository) UpdateStatus(ctx context.Context, id uuid.UUID, sta
 		return fmt.Errorf("ResponseRepository.UpdateStatus: to sql: %w", err)
 	}
 
-	if _, err = r.db.Pool.Exec(ctx, sql, args...); err != nil {
+	tag, err := r.db.Pool.Exec(ctx, sql, args...)
+	if err != nil {
 		return fmt.Errorf("ResponseRepository.UpdateStatus: exec: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return apperror.ErrNotFound
 	}
 
 	return nil

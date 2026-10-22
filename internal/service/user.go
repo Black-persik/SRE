@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"main/internal/entity"
 	"main/internal/error"
+	"main/internal/metrics"
 
 	"github.com/google/uuid"
 )
@@ -26,8 +27,13 @@ func NewUserService(users UserRepository) *UserService {
 	return &UserService{users: users}
 }
 
-func (s *UserService) Create(ctx context.Context, user entity.CreateUser) (entity.User, error) {
-	_, err := s.users.GetByUsername(ctx, user.Username)
+func (s *UserService) Create(ctx context.Context, user entity.CreateUser) (_ entity.User, err error) {
+	defer func() {
+		metrics.ObserveUserRegistration(err)
+		metrics.ObserveOperation(metrics.OpCreateUser, err)
+	}()
+
+	_, err = s.users.GetByUsername(ctx, user.Username)
 	if err == nil {
 		return entity.User{}, apperror.ErrUsernameTaken
 	}
@@ -77,7 +83,9 @@ func (s *UserService) GetByEmail(ctx context.Context, email string) (entity.User
 	return user, nil
 }
 
-func (s *UserService) UpdateEmail(ctx context.Context, id uuid.UUID, email string) error {
+func (s *UserService) UpdateEmail(ctx context.Context, id uuid.UUID, email string) (err error) {
+	defer func() { metrics.ObserveOperation(metrics.OpUpdateEmail, err) }()
+
 	existing, err := s.users.GetByEmail(ctx, email)
 	if err == nil && existing.ID != id {
 		return apperror.ErrEmailTaken

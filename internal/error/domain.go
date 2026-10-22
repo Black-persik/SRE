@@ -10,4 +10,5 @@ var (
 	ErrUserNotFound  = errors.New("user not found")
 	ErrUsernameTaken = errors.New("username already exists")
 	ErrEmailTaken    = errors.New("email already exists")
+	ErrInvalidStatus = errors.New("invalid status")
 )

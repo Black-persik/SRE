@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"main/internal/entity"
 	"main/internal/error"
+	"main/internal/metrics"
 
 	"github.com/google/uuid"
 )
@@ -31,8 +32,14 @@ func NewResponseService(responses ResponseRepository, users userByID) *ResponseS
 	return &ResponseService{responses: responses, users: users}
 }
 
-func (s *ResponseService) Create(ctx context.Context, response entity.CreateResponse) (entity.Response, error) {
-	_, err := s.users.GetByID(ctx, response.UserID)
+func (s *ResponseService) Create(ctx context.Context, response entity.CreateResponse) (_ entity.Response, err error) {
+	defer func() { metrics.ObserveOperation(metrics.OpCreateResponse, err) }()
+
+	if !response.Status.Valid() {
+		return entity.Response{}, apperror.ErrInvalidStatus
+	}
+
+	_, err = s.users.GetByID(ctx, response.UserID)
 	if errors.Is(err, apperror.ErrNotFound) {
 		return entity.Response{}, apperror.ErrUserNotFound
 	}
@@ -47,6 +54,7 @@ func (s *ResponseService) Create(ctx context.Context, response entity.CreateResp
 	if err != nil {
 		return entity.Response{}, fmt.Errorf("ResponseService.Create: create response: %w", err)
 	}
+	metrics.ResponseCreated()
 	return createdResponse, nil
 }
 
@@ -66,16 +74,26 @@ func (s *ResponseService) GetByUserID(ctx context.Context, userID uuid.UUID) ([]
 	return responses, nil
 }
 
-func (s *ResponseService) UpdateStatus(ctx context.Context, id uuid.UUID, status entity.ResponseStatus) error {
-	err := s.responses.UpdateStatus(ctx, id, status)
+func (s *ResponseService) UpdateStatus(ctx context.Context, id uuid.UUID, status entity.ResponseStatus) (err error) {
+	defer func() { metrics.ObserveOperation(metrics.OpUpdateStatus, err) }()
+
+	// The status becomes a metric label, so it must be checked before it gets there.
+	if !status.Valid() {
+		return apperror.ErrInvalidStatus
+	}
+
+	err = s.responses.UpdateStatus(ctx, id, status)
 	if err != nil {
 		return fmt.Errorf("ResponseService.UpdateStatus: update status: %w", err)
 	}
+	metrics.ResponseStatusChanged(status)
 	return nil
 }
 
-func (s *ResponseService) Delete(ctx context.Context, id uuid.UUID) error {
-	err := s.responses.Delete(ctx, id)
+func (s *ResponseService) Delete(ctx context.Context, id uuid.UUID) (err error) {
+	defer func() { metrics.ObserveOperation(metrics.OpDeleteResponse, err) }()
+
+	err = s.responses.Delete(ctx, id)
 	if err != nil {
 		return fmt.Errorf("ResponseService.Delete: delete response: %w", err)
 	}

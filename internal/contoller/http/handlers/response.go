@@ -55,6 +55,10 @@ func (h *ResponseHandler) CreateResponse(w http.ResponseWriter, r *http.Request)
 		apperror.Write(w, apperror.ErrUserMissing)
 		return
 	}
+	if errors.Is(err, apperror.ErrInvalidStatus) {
+		apperror.Write(w, apperror.ErrInvalidStatusValue)
+		return
+	}
 	if err != nil {
 		middleware.SetError(r, err)
 		apperror.Write(w, apperror.ErrInternal)
@@ -115,6 +119,14 @@ func (h *ResponseHandler) UpdateResponseStatus(w http.ResponseWriter, r *http.Re
 	}
 
 	if err = h.responses.UpdateStatus(r.Context(), id, newStatus); err != nil {
+		if errors.Is(err, apperror.ErrInvalidStatus) {
+			apperror.Write(w, apperror.ErrInvalidStatusValue)
+			return
+		}
+		if errors.Is(err, apperror.ErrNotFound) {
+			apperror.Write(w, apperror.ErrResponseMissing)
+			return
+		}
 		middleware.SetError(r, err)
 		apperror.Write(w, apperror.ErrInternal)
 		return

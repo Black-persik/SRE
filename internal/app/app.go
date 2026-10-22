@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"main/api"
 	"main/config"
+	"main/internal/contoller/http/handlers"
 	"main/internal/contoller/http/middleware"
 	"main/web"
 	"net/http"
@@ -48,7 +49,9 @@ func New(ctx context.Context) (*App, error) {
 	mux.HandleFunc("GET /api/v1/responses/{id}", container.Controllers.Responses.GetResponseByID)
 	mux.HandleFunc("PATCH /api/v1/responses/{id}/status/{status}", container.Controllers.Responses.UpdateResponseStatus)
 	mux.HandleFunc("DELETE /api/v1/responses/{id}", container.Controllers.Responses.DeleteResponse)
+	
 	mux.Handle("GET /", http.FileServer(http.FS(web.Files)))
+	mux.Handle("GET /metrics", handlers.NewMetricsHandler())
 
 	return &App{
 		cfg:       cfg,

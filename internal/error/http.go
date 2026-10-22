@@ -24,6 +24,8 @@ var (
 	ErrEmailRequired            = HTTPError{Status: http.StatusBadRequest, Message: "email is required"}
 	ErrResponseFieldsRequired   = HTTPError{Status: http.StatusBadRequest, Message: "user_id, company, and vacancy are required"}
 	ErrStatusRequired           = HTTPError{Status: http.StatusBadRequest, Message: "status is required"}
+	ErrInvalidStatusValue       = HTTPError{Status: http.StatusBadRequest, Message: "status must be one of: waiting, accepted, rejected"}
+	ErrResponseMissing          = HTTPError{Status: http.StatusNotFound, Message: "response not found"}
 	ErrUsernameAlreadyExists    = HTTPError{Status: http.StatusConflict, Message: ErrUsernameTaken.Error()}
 	ErrEmailAlreadyExists       = HTTPError{Status: http.StatusConflict, Message: ErrEmailTaken.Error()}
 	ErrUserMissing              = HTTPError{Status: http.StatusNotFound, Message: ErrUserNotFound.Error()}
