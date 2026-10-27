@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prober
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prober
+  template:
+    metadata:
+      labels:
+        app: prober
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: prober
+          image: myapp-prober:1.0
+          imagePullPolicy: Never
+          ports:
+            - name: metrics
+              containerPort: 9090
+          env:
+            - name: PROBER_TARGET_URL
+              value: http://app   # Service "app" from deployment.yaml, port 80 -> 8080
+            - name: PROBER_INTERVAL
+              value: 15s
+            - name: PROBER_TIMEOUT
+              value: 5s
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 64Mi
