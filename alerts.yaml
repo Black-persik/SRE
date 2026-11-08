@@ -1,0 +1,19 @@
+groups:
+  - name: TestingAlerts
+    rules:
+      - alert: HighGoroutines
+        expr: go_goroutines{container="app"} > 10
+        for: 10s
+        labels:
+          severity: warning
+        annotations:
+          summary: "Приложение держит {{ $value }} горутин — возможна утечка"
+
+      - alert: HighCPUUtilization
+        expr: sum(rate(container_cpu_usage_seconds_total{container="app"}[10m])) > 0.8
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Высокая утилизация процессора (> 80%)"
+

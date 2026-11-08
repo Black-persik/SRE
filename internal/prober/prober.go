@@ -1,4 +1,4 @@
-// Package prober walks the main user scenario of the application over its public HTTP API
+// Package prober exercises the application over its public HTTP API
 // and exposes the outcome as Prometheus metrics (blackbox monitoring).
 package prober
 
@@ -20,6 +20,11 @@ import (
 
 const userAgent = "sre-tbank-prober"
 
+var (
+	errNoFixtureUser     = errors.New("no registered user to create responses for yet")
+	errNoFixtureResponse = errors.New("no response to change the status of yet")
+)
+
 // The app encodes entities without json tags; decoding is case-insensitive, so these match either way.
 type user struct {
 	ID       uuid.UUID `json:"id"`
@@ -31,10 +36,30 @@ type response struct {
 	Status string    `json:"status"`
 }
 
+type statusError struct {
+	code int
+	msg  string
+}
+
+func (e *statusError) Error() string {
+	return fmt.Sprintf("status %d: %s", e.code, e.msg)
+}
+
+func isNotFound(err error) bool {
+	var se *statusError
+	return errors.As(err, &se) && se.code == http.StatusNotFound
+}
+
 type Prober struct {
 	cfg    *Config
 	log    *slog.Logger
 	client *http.Client
+
+	// A user and a response kept between runs. The response and status checks work on them,
+	// so they keep hitting the app even when registration is broken.
+	fixtureUser     uuid.UUID
+	fixtureResponse uuid.UUID
+	statusChanges   int
 }
 
 func New(cfg *Config, log *slog.Logger) *Prober {
@@ -45,7 +70,7 @@ func New(cfg *Config, log *slog.Logger) *Prober {
 	}
 }
 
-// Run serves metrics and repeats the scenario every Interval until ctx is cancelled.
+// Run serves metrics and probes the app every Interval until ctx is cancelled.
 func (p *Prober) Run(ctx context.Context) error {
 	mux := http.NewServeMux()
 	mux.Handle("GET /metrics", promhttp.Handler())
@@ -75,16 +100,37 @@ func (p *Prober) Run(ctx context.Context) error {
 	}
 }
 
+// probe runs every check once; a failed check does not stop the ones after it.
 func (p *Prober) probe(ctx context.Context) {
 	start := time.Now()
-	err := p.scenario(ctx)
-	if ctx.Err() != nil {
-		// Shutting down: an interrupted run says nothing about the application.
-		return
+	checks := []struct {
+		name check
+		run  func(context.Context) error
+	}{
+		{checkRegistration, p.checkRegistration},
+		{checkResponse, p.checkResponse},
+		{checkStatus, p.checkStatus},
 	}
-	if err != nil {
+
+	failed := 0
+	for _, c := range checks {
+		err := c.run(ctx)
+		if ctx.Err() != nil {
+			// Shutting down: an interrupted run says nothing about the application.
+			return
+		}
+		result := resultSuccess
+		if err != nil {
+			result = resultFail
+			failed++
+			p.log.Error("check failed", "check", c.name, "error", err)
+		}
+		checksTotal.WithLabelValues(string(c.name), result).Inc()
+	}
+
+	if failed > 0 {
 		scenariosTotal.WithLabelValues(resultFail).Inc()
-		p.log.Error("probe failed", "error", err, "duration", time.Since(start).String())
+		p.log.Error("probe failed", "failed_checks", failed, "duration", time.Since(start).String())
 		return
 	}
 	scenariosTotal.WithLabelValues(resultSuccess).Inc()
@@ -92,9 +138,9 @@ func (p *Prober) probe(ctx context.Context) {
 	p.log.Info("probe succeeded", "duration", time.Since(start).String())
 }
 
-// scenario registers a user, creates a job response, accepts it and deletes it.
-// It stops at the first failed step, but always deletes a response it managed to create.
-func (p *Prober) scenario(ctx context.Context) (err error) {
+// checkRegistration registers a new user and reads it back.
+// The first registered user becomes the fixture for the response check.
+func (p *Prober) checkRegistration(ctx context.Context) error {
 	// Unique per run, so registration never hits "username already exists".
 	suffix := uuid.NewString()
 	username := "prober-" + suffix
@@ -128,11 +174,28 @@ func (p *Prober) scenario(ctx context.Context) (err error) {
 		return err
 	}
 
+	if p.fixtureUser == uuid.Nil {
+		p.fixtureUser = userID
+	}
+	return nil
+}
+
+// checkResponse creates a response for the fixture user and deletes it.
+// The first created response is kept as the fixture for the status check.
+func (p *Prober) checkResponse(ctx context.Context) error {
+	if p.fixtureUser == uuid.Nil {
+		return errNoFixtureUser
+	}
+
 	var responseID uuid.UUID
 	if err := p.step(ctx, stepCreateResponse, func(ctx context.Context) error {
 		var r response
-		body := map[string]string{"user_id": userID.String(), "company": "prober", "vacancy": "probe"}
+		body := map[string]string{"user_id": p.fixtureUser.String(), "company": "prober", "vacancy": "probe"}
 		if err := p.call(ctx, http.MethodPost, "/api/v1/responses", body, http.StatusCreated, &r); err != nil {
+			if isNotFound(err) {
+				// The user is gone (e.g. the database was recreated); take a new one next run.
+				p.fixtureUser = uuid.Nil
+			}
 			return err
 		}
 		if r.ID == uuid.Nil {
@@ -144,26 +207,43 @@ func (p *Prober) scenario(ctx context.Context) (err error) {
 		return err
 	}
 
-	defer func() {
-		delErr := p.step(ctx, stepDeleteResponse, func(ctx context.Context) error {
-			return p.call(ctx, http.MethodDelete, "/api/v1/responses/"+responseID.String(), nil, http.StatusOK, nil)
-		})
-		if err == nil {
-			err = delErr
-		}
-	}()
+	if p.fixtureResponse == uuid.Nil {
+		p.fixtureResponse = responseID
+		return nil
+	}
 
-	const newStatus = "accepted"
+	return p.step(ctx, stepDeleteResponse, func(ctx context.Context) error {
+		return p.call(ctx, http.MethodDelete, "/api/v1/responses/"+responseID.String(), nil, http.StatusOK, nil)
+	})
+}
+
+// checkStatus changes the status of the fixture response and reads it back.
+func (p *Prober) checkStatus(ctx context.Context) error {
+	if p.fixtureResponse == uuid.Nil {
+		return errNoFixtureResponse
+	}
+
+	// Alternate, so every run is a real change the read-back can tell apart.
+	newStatus := "accepted"
+	if p.statusChanges%2 == 1 {
+		newStatus = "rejected"
+	}
+	p.statusChanges++
+
 	if err := p.step(ctx, stepUpdateStatus, func(ctx context.Context) error {
-		path := fmt.Sprintf("/api/v1/responses/%s/status/%s", responseID, newStatus)
-		return p.call(ctx, http.MethodPatch, path, nil, http.StatusOK, nil)
+		path := fmt.Sprintf("/api/v1/responses/%s/status/%s", p.fixtureResponse, newStatus)
+		err := p.call(ctx, http.MethodPatch, path, nil, http.StatusOK, nil)
+		if isNotFound(err) {
+			p.fixtureResponse = uuid.Nil
+		}
+		return err
 	}); err != nil {
 		return err
 	}
 
 	return p.step(ctx, stepGetResponse, func(ctx context.Context) error {
 		var r response
-		if err := p.call(ctx, http.MethodGet, "/api/v1/responses/"+responseID.String(), nil, http.StatusOK, &r); err != nil {
+		if err := p.call(ctx, http.MethodGet, "/api/v1/responses/"+p.fixtureResponse.String(), nil, http.StatusOK, &r); err != nil {
 			return err
 		}
 		if r.Status != newStatus {
@@ -219,7 +299,7 @@ func (p *Prober) call(ctx context.Context, method, path string, body any, wantSt
 
 	if resp.StatusCode != wantStatus {
 		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return fmt.Errorf("%s %s: status %d, want %d: %s", method, path, resp.StatusCode, wantStatus, bytes.TrimSpace(msg))
+		return fmt.Errorf("%s %s: %w", method, path, &statusError{code: resp.StatusCode, msg: string(bytes.TrimSpace(msg))})
 	}
 	if out != nil {
 		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
