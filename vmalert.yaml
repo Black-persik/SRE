@@ -10,7 +10,7 @@ data:
     receivers:
       - name: telegram
         telegram_configs:
-          - bot_token: "9282549193:AAGXM-2tIyCAZGYD72ZaTR5fkEq9Ss6nG9U"
+          - bot_token: "9282549193:AAGXM-2tIyCAZGYD72ZaTR5fkEq9Ss6nG9U_example"
             chat_id: 795971235
             send_resolved: true
 ---
